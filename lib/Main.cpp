@@ -22,25 +22,29 @@ void print_directory(const Tree& directory)
 {
 	static int directories_in = 0;
 	std::string str_copy = directory.name;
+
 	if (directories_in > 0)
 		str_copy.pop_back();
 
 	std::string dir_to_print = str_copy.substr(str_copy.find_last_of("/") + 1) + "/";
 
-	std::cout << std::right << std::setw(directories_in * 3) << dir_to_print << std::endl;
+	std::cout << std::endl;
+	std::cout << std::string(directories_in * 2, ' ') << dir_to_print
+			  << "\n" << std::string((directories_in * 2), ' ') + "|" << std::endl;
+
 	for (auto elem: directory.children)
 	{
-		if (elem.children.empty())
-		{
-			std::cout << std::setw(directories_in * 3) << "\t" << elem.name << std::endl;
-		}
-		else
+		if (elem.name.back() == '/')
 		{
 			directories_in++;
 			print_directory(elem);
+			directories_in--;
+		}
+		else
+		{
+			std::cout << std::string((directories_in * 2), ' ') << "|--" << elem.name << std::endl;
 		}
 	}
-	directories_in--;;
 }
 
 void collect_data(Tree& current_dir)
