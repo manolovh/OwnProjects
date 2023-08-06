@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -5,6 +6,7 @@
 #include "../inc/Header.hpp"
 
 using path_t = std::vector<std::filesystem::__cxx11::path>;
+static const size_t SEPARATOR_COUNT = 20;
 
 struct Tree
 {
@@ -18,19 +20,30 @@ struct Tree
 		: name{name}, parent{parent} {}
 };
 
+// Used for sorting all files before directories
+bool operator<(const Tree& obj1, const Tree& obj2)
+{
+	return (obj1.name.find("/") != std::string::npos) < (obj2.name.find("/") != std::string::npos);
+}
+
 void print_directory(const Tree& directory)
 {
 	static int directories_in = 0;
 	std::string str_copy = directory.name;
 
 	if (directories_in > 0)
+	{
 		str_copy.pop_back();
 
-	std::string dir_to_print = str_copy.substr(str_copy.find_last_of("/") + 1) + "/";
+		std::string dir_to_print = str_copy.substr(str_copy.find_last_of("/") + 1) + "/";
 
-	std::cout << std::endl;
-	std::cout << std::string(directories_in * 2, ' ') << dir_to_print
-			  << "\n" << std::string((directories_in * 2), ' ') + "|" << std::endl;
+		std::cout << "\n\n";
+		std::cout << std::string(directories_in * 2, ' ') << "/" << dir_to_print;
+	}
+	else
+	{
+		std::cout << "===== FILES AND SUB-DIRECTORIES IN CWD =====";
+	}
 
 	for (auto elem: directory.children)
 	{
@@ -38,13 +51,13 @@ void print_directory(const Tree& directory)
 		{
 			directories_in++;
 			print_directory(elem);
-			directories_in--;
 		}
 		else
 		{
-			std::cout << std::string((directories_in * 2), ' ') << "|--" << elem.name << std::endl;
+			std::cout << "\n" << std::string((directories_in + 1) * 2, ' ') << elem.name;
 		}
 	}
+	directories_in--;
 }
 
 void collect_data(Tree& current_dir)
@@ -68,6 +81,15 @@ void collect_data(Tree& current_dir)
 			current_dir.children.emplace_back(Tree(element_name));
 		}
 	}
+
+	// Sort files to be printed first, then directories
+	std::sort(current_dir.children.begin(), current_dir.children.end(),
+		[] (Tree obj1, Tree obj2)
+			{
+				return obj1 < obj2;
+			}
+	);
+
 	std::filesystem::current_path("../");
 }
 
@@ -84,4 +106,6 @@ int main(int argc, char *argv[])
 
 	collect_data(current_dir);
 	print_directory(current_dir);
+
+	std::cout << std::endl;
 }
