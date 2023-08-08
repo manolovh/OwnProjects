@@ -20,13 +20,29 @@ struct Tree
 		: name{name}, parent{parent} {}
 };
 
+struct Flags
+{
+	bool show_only_dirs;
+	bool show_only_files;
+	bool show_biggest_first;
+	bool show_most_recent;
+};
+
 // Used for sorting all files before directories
-bool operator<(const Tree& obj1, const Tree& obj2)
+bool operator<(Tree const& obj1, Tree const& obj2)
 {
 	return (obj1.name.find("/") != std::string::npos) < (obj2.name.find("/") != std::string::npos);
 }
 
-void print_directory(const Tree& directory)
+void fill_flags(std::vector<std::string> const& input_flags, Flags& all_flags)
+{
+	all_flags.show_only_dirs = std::find(input_flags.begin(), input_flags.end(), "-dir") != input_flags.end();
+	all_flags.show_only_files = std::find(input_flags.begin(), input_flags.end(), "-file") != input_flags.end();
+	all_flags.show_most_recent = std::find(input_flags.begin(), input_flags.end(), "-time") != input_flags.end();
+	all_flags.show_biggest_first = std::find(input_flags.begin(), input_flags.end(), "-size") != input_flags.end();
+}
+
+void print_directory(Tree const& directory, Flags const& flags)
 {
 	static int directories_in = 0;
 	std::string str_copy = directory.name;
@@ -50,7 +66,7 @@ void print_directory(const Tree& directory)
 		if (elem.name.back() == '/')
 		{
 			directories_in++;
-			print_directory(elem);
+			print_directory(elem, flags);
 		}
 		else
 		{
@@ -97,15 +113,24 @@ std::string name = std::filesystem::current_path();
 
 int main(int argc, char *argv[])
 {
-	if (argv[1])
+	std::vector<std::string> input_flags;
+	for (int i = 1; i < argc; i++)
 	{
-		name += '/' + argv[1];
+		input_flags.emplace_back(argv[i]);
+	}
+
+	Flags all_flags;
+	fill_flags(input_flags, all_flags);
+
+	if (all_flags.show_only_dirs && all_flags.show_only_files)
+	{
+		std::cerr << "Invalid option: Incompatible flags (-file, -dir)" << std::endl;
+		return -1;
 	}
 
 	Tree current_dir = Tree(name, "");
-
 	collect_data(current_dir);
-	print_directory(current_dir);
+	print_directory(current_dir, all_flags);
 
 	std::cout << std::endl;
 }
