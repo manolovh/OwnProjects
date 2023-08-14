@@ -1,7 +1,10 @@
 #include <algorithm>
+#include <chrono>
+#include <ctime>
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <set>
 #include <vector>
 #include "../inc/Header.hpp"
 
@@ -12,12 +15,20 @@ struct Tree
 {
 	std::string name;
 	std::vector<Tree> children;
-	std::string parent;
+	unsigned long size;
+	std::chrono::nanoseconds time;
+
 
 	Tree(std::string name) : name{name} {}
+	
+	Tree(std::string name, std::chrono::nanoseconds time)
+		: name{name}, time{time} {}
 
-	Tree(std::string name, std::string parent)
-		: name{name}, parent{parent} {}
+	Tree(std::string name,
+		 unsigned long size,
+		 std::chrono::nanoseconds time
+		)
+		: name{name}, size{size}, time{time} {}
 };
 
 struct Flags
@@ -34,7 +45,7 @@ bool operator<(Tree const& obj1, Tree const& obj2)
 	return (obj1.name.find("/") != std::string::npos) < (obj2.name.find("/") != std::string::npos);
 }
 
-void fill_flags(std::vector<std::string> const& input_flags, Flags& all_flags)
+void fill_flags(std::set<std::string> const& input_flags, Flags& all_flags)
 {
 	all_flags.show_only_dirs = std::find(input_flags.begin(), input_flags.end(), "-dir") != input_flags.end();
 	all_flags.show_only_files = std::find(input_flags.begin(), input_flags.end(), "-file") != input_flags.end();
@@ -42,7 +53,7 @@ void fill_flags(std::vector<std::string> const& input_flags, Flags& all_flags)
 	all_flags.show_biggest_first = std::find(input_flags.begin(), input_flags.end(), "-size") != input_flags.end();
 }
 
-void print_directory(Tree const& directory, Flags const& flags)
+void print_directory(Tree const& directory)
 {
 	static int directories_in = 0;
 	std::string str_copy = directory.name;
@@ -54,7 +65,7 @@ void print_directory(Tree const& directory, Flags const& flags)
 		std::string dir_to_print = str_copy.substr(str_copy.find_last_of("/") + 1) + "/";
 
 		std::cout << "\n\n";
-		std::cout << std::string(directories_in * 2, ' ') << "/" << dir_to_print;
+		std::cout << std::string(directories_in * 2, ' ') << "/" << dir_to_print << " (" << directory.size << "B)";
 	}
 	else
 	{
@@ -66,11 +77,11 @@ void print_directory(Tree const& directory, Flags const& flags)
 		if (elem.name.back() == '/')
 		{
 			directories_in++;
-			print_directory(elem, flags);
+			print_directory(elem);
 		}
 		else
 		{
-			std::cout << "\n" << std::string((directories_in + 1) * 2, ' ') << elem.name;
+			std::cout << "\n" << std::string((directories_in + 1) * 2, ' ') << elem.name << " (" << elem.size << "B)";
 		}
 	}
 	directories_in--;
@@ -86,7 +97,13 @@ void collect_data(Tree& current_dir)
 		{
 			std::filesystem::current_path(entry.path());
 			std::string current_name = std::filesystem::current_path();
-			current_dir.children.emplace_back(Tree(current_name + "/"));
+
+			current_dir.children.emplace_back(
+				Tree(
+					current_name + "/",
+					entry.last_write_time().time_since_epoch()
+				)
+			);
 
 			collect_data(current_dir.children[current_dir.children.size() - 1]);
 		}
@@ -94,7 +111,13 @@ void collect_data(Tree& current_dir)
 		else if (entry.is_regular_file() && (entry.path().filename().c_str()[0] != '.'))
 		{
 			element_name = entry.path().filename().c_str();
-			current_dir.children.emplace_back(Tree(element_name));
+			current_dir.children.emplace_back(
+				Tree(
+					element_name,
+					entry.file_size(),
+					entry.last_write_time().time_since_epoch()
+				)
+			);
 		}
 	}
 
@@ -109,15 +132,37 @@ void collect_data(Tree& current_dir)
 	std::filesystem::current_path("../");
 }
 
+void sort_by_size(Tree& current_dir)
+{
+	unsigned long current_dir_size = 0;
+	for (auto& elem: current_dir.children)
+	{
+		if (elem.name[elem.name.size() - 1] == '/')
+		{
+			sort_by_size(elem);
+			current_dir_size += elem.size;
+		}
+		else
+		{
+			current_dir_size += elem.size;
+		}
+	}
+
+	current_dir.size = current_dir_size;
+}
+
 std::string name = std::filesystem::current_path();
 
 int main(int argc, char *argv[])
 {
-	std::vector<std::string> input_flags;
+	std::set<std::string> input_flags;
 	for (int i = 1; i < argc; i++)
 	{
-		input_flags.emplace_back(argv[i]);
+		input_flags.emplace(argv[i]);
 	}
+
+	Tree current_dir = Tree(name);
+	collect_data(current_dir);
 
 	Flags all_flags;
 	fill_flags(input_flags, all_flags);
@@ -127,10 +172,18 @@ int main(int argc, char *argv[])
 		std::cerr << "Invalid option: Incompatible flags (-file, -dir)" << std::endl;
 		return -1;
 	}
+	else if (all_flags.show_most_recent && all_flags.show_biggest_first)
+	{
+		std::cerr << "Invalid option: Incompatible flags (-time, -size)" << std::endl;
+		return -1;
+	}
+	
+	if (all_flags.show_biggest_first)
+	{
+		sort_by_size(current_dir);
+	}
 
-	Tree current_dir = Tree(name, "");
-	collect_data(current_dir);
-	print_directory(current_dir, all_flags);
+	print_directory(current_dir);
 
 	std::cout << std::endl;
 }
