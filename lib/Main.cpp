@@ -148,6 +148,15 @@ void sort_by_size(Tree& current_dir)
 		}
 	}
 
+	std::sort(
+		current_dir.children.begin(),
+		current_dir.children.end(),
+		[](Tree elem1, Tree elem2)
+		{
+			return (elem2.size < elem1.size);
+		}
+	);
+
 	current_dir.size = current_dir_size;
 }
 
