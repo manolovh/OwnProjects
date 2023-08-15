@@ -16,17 +16,17 @@ struct Tree
 	std::string name;
 	std::vector<Tree> children;
 	unsigned long size;
-	std::chrono::nanoseconds time;
+	int64_t time;
 
 
 	Tree(std::string name) : name{name} {}
 	
-	Tree(std::string name, std::chrono::nanoseconds time)
+	Tree(std::string name, int64_t time)
 		: name{name}, time{time} {}
 
 	Tree(std::string name,
 		 unsigned long size,
-		 std::chrono::nanoseconds time
+		 int64_t time
 		)
 		: name{name}, size{size}, time{time} {}
 };
@@ -72,7 +72,7 @@ void print_directory(Tree const& directory)
 		std::cout << "===== FILES AND SUB-DIRECTORIES IN CWD =====";
 	}
 
-	for (auto elem: directory.children)
+	for (auto& elem: directory.children)
 	{
 		if (elem.name.back() == '/')
 		{
@@ -81,7 +81,8 @@ void print_directory(Tree const& directory)
 		}
 		else
 		{
-			std::cout << "\n" << std::string((directories_in + 1) * 2, ' ') << elem.name << " (" << elem.size << "B)";
+			std::cout << "\n" << std::string((directories_in + 1) * 2, ' ')
+					  << elem.name << " (" << elem.size << "B)";
 		}
 	}
 	directories_in--;
@@ -101,7 +102,7 @@ void collect_data(Tree& current_dir)
 			current_dir.children.emplace_back(
 				Tree(
 					current_name + "/",
-					entry.last_write_time().time_since_epoch()
+					entry.last_write_time().time_since_epoch().count()
 				)
 			);
 
@@ -115,7 +116,7 @@ void collect_data(Tree& current_dir)
 				Tree(
 					element_name,
 					entry.file_size(),
-					entry.last_write_time().time_since_epoch()
+					entry.last_write_time().time_since_epoch().count()
 				)
 			);
 		}
@@ -160,6 +161,18 @@ void sort_by_size(Tree& current_dir)
 	current_dir.size = current_dir_size;
 }
 
+void sort_by_time(Tree& current_dir)
+{
+	std::sort(
+	current_dir.children.begin(),
+	current_dir.children.end(),
+	[](Tree elem1, Tree elem2)
+	{
+		return (elem2.time < elem1.time);
+	}
+	);
+}
+
 std::string name = std::filesystem::current_path();
 
 int main(int argc, char *argv[])
@@ -190,6 +203,10 @@ int main(int argc, char *argv[])
 	if (all_flags.show_biggest_first)
 	{
 		sort_by_size(current_dir);
+	}
+	else if (all_flags.show_most_recent)
+	{
+		sort_by_time(current_dir);
 	}
 
 	print_directory(current_dir);
