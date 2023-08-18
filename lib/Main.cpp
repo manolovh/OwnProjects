@@ -39,12 +39,6 @@ struct Flags
 	bool show_most_recent;
 };
 
-// Used for sorting all files before directories
-bool operator<(Tree const& obj1, Tree const& obj2)
-{
-	return (obj1.name.find("/") != std::string::npos) < (obj2.name.find("/") != std::string::npos);
-}
-
 void fill_flags(std::set<std::string> const& input_flags, Flags& all_flags)
 {
 	all_flags.show_only_dirs = std::find(input_flags.begin(), input_flags.end(), "-dir") != input_flags.end();
@@ -126,11 +120,28 @@ void collect_data(Tree& current_dir)
 	std::sort(current_dir.children.begin(), current_dir.children.end(),
 		[] (Tree obj1, Tree obj2)
 			{
-				return obj1 < obj2;
+				return obj1.name < obj2.name;
 			}
 	);
 
 	std::filesystem::current_path("../");
+}
+
+void sort_alphabetically(Tree current_dir)
+{
+	for (auto& elem: current_dir.children)
+	{
+		sort_alphabetically(elem);
+	}
+
+	std::sort(
+		current_dir.children.begin(),
+		current_dir.children.end(),
+		[](Tree elem1, Tree elem2)
+		{
+			return (elem2.size < elem1.size);
+		}
+	);
 }
 
 void sort_by_size(Tree& current_dir)
